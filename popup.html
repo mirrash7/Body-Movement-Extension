@@ -5,21 +5,101 @@
   <style>
     body {
       width: 300px;
-      padding: 10px;
+      padding: 15px;
       font-family: Arial, sans-serif;
+      background-color: #f5f5f5;
+    }
+    h2 {
+      color: #333;
+      text-align: center;
+      margin-top: 0;
+      margin-bottom: 20px;
+    }
+    .button-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
     button {
-      margin: 5px 0;
-      padding: 8px;
-      width: 100%;
+      padding: 12px;
+      border-radius: 5px;
       cursor: pointer;
+      font-weight: bold;
+      border: none;
+      transition: background-color 0.3s;
+    }
+    #toggle {
+      background-color: #4CAF50;
+      color: white;
+    }
+    #toggle:hover {
+      background-color: #45a049;
+    }
+    #controls-button {
+      background-color: #2196F3;
+      color: white;
+    }
+    #controls-button:hover {
+      background-color: #0b7dda;
+    }
+    #emoji-toggle {
+      background-color: #9C27B0;
+      color: white;
+    }
+    #emoji-toggle:hover {
+      background-color: #7B1FA2;
+    }
+    .controls-info {
+      margin-top: 15px;
+      padding: 10px;
+      background-color: #fff;
+      border-radius: 5px;
+      border-left: 4px solid #2196F3;
+      display: none;
+    }
+    .controls-info h3 {
+      margin-top: 0;
+      color: #333;
+    }
+    .controls-info ul {
+      padding-left: 20px;
+      margin-bottom: 0;
+    }
+    .controls-info li {
+      margin-bottom: 5px;
+    }
+    .status {
+      margin-top: 15px;
+      padding: 8px;
+      border-radius: 4px;
+      text-align: center;
+      background-color: #f0f0f0;
+      color: #666;
     }
   </style>
 </head>
 <body>
   <h2>Subway Motion Controller</h2>
-  <button id="calibrate">Calibrate Position</button>
-  <button id="toggle">Enable Motion Control</button>
+  
+  <div class="button-container">
+    <button id="toggle">Enable Motion Control</button>
+    <button id="controls-button">Show Controls</button>
+    <button id="emoji-toggle">Hide Emoji</button>
+  </div>
+  
+  <div class="controls-info" id="controls-info">
+    <h3>Motion Controls</h3>
+    <ul>
+      <li>Move left/right: Lean body left/right</li>
+      <li>Jump (ArrowUp): Raise both shoulders</li>
+      <li>Action (Space): Raise one hand above nose</li>
+      <li>Pause (Escape): Extend both arms outward</li>
+      <li>Duck: Lower shoulders below duck line</li>
+    </ul>
+  </div>
+  
+  <div class="status" id="status">Ready</div>
+  
   <script src="popup.js"></script>
 </body>
 </html> 

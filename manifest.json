@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Subway Motion Controller",
   "version": "1.0",
-  "description": "Control on-screen elements with motion detection",
+  "description": "Control web games with motion detection using your webcam",
   "permissions": ["activeTab", "storage"],
   "host_permissions": ["<all_urls>"],
   "action": {
@@ -23,7 +23,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["overlay.js"],
+      "resources": ["overlay.js", "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"],
       "matches": ["<all_urls>"]
     }
   ],

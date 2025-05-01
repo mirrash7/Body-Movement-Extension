@@ -1332,5 +1332,56 @@ console.log("Subway Overlay script loaded");
       script.onerror = reject;
       document.head.appendChild(script);
     });
-  } 
+  }
+
+  // Add this to your existing message listener in overlay.js
+  window.addEventListener('message', (event) => {
+    // Only process messages from our extension
+    if (event.data.source !== 'extension') return;
+    
+    console.log("Overlay received message:", event.data);
+    
+    if (event.data.type === 'SUBWAY_TOGGLE') {
+      const enabled = event.data.enabled;
+      if (enabled) {
+        // Start motion control
+        startWebcam();
+        // Other initialization code...
+      } else {
+        // Stop motion control
+        if (videoElement.srcObject) {
+          const tracks = videoElement.srcObject.getTracks();
+          tracks.forEach(track => track.stop());
+          videoElement.srcObject = null;
+        }
+        // Hide overlay elements...
+        overlay.style.display = 'none';
+      }
+      
+      // Send status update back to content script
+      window.postMessage({
+        source: 'subway_overlay',
+        type: 'STATUS_UPDATE',
+        motionEnabled: enabled,
+        emojiEnabled: emojiEnabled,
+        calibrated: calibrated
+      }, '*');
+    }
+    else if (event.data.type === 'SUBWAY_TOGGLE_EMOJI') {
+      emojiEnabled = event.data.enabled;
+      emojiToggleButton.textContent = emojiEnabled ? 'Hide Emoji' : 'Show Emoji';
+      if (!emojiEnabled) {
+        smileyFace.style.display = 'none';
+      }
+      
+      // Send status update back to content script
+      window.postMessage({
+        source: 'subway_overlay',
+        type: 'STATUS_UPDATE',
+        motionEnabled: (overlay.style.display !== 'none'),
+        emojiEnabled: emojiEnabled,
+        calibrated: calibrated
+      }, '*');
+    }
+  });
 })(); 
