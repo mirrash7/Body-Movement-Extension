@@ -1,30 +1,72 @@
-console.log("Subway Overlay script loaded");
+console.log("Subway Overlay script loading...");
 
 (function() {
+  // State variables
+  let isEnabled = false;
+  let isCalibrating = false;
+  let calibrationPosition = null;
+  let videoElement = null;
+  let overlayElement = null;
+  let canvasElement = null;
+  let ctx = null;
+  let stream = null;
+  let motionInterval = null;
+  let lastImageData = null;
+  let overlay = null;
+  let emojiEnabled = true;
+  let calibrated = false;
+  
+  let overlayInitialized = false;
+  let overlayContainer = null;
+  
+  // Initialize but don't show overlay yet
   window.addEventListener('load', async function() {
-    // Remove existing overlay if any
-    const existingOverlay = document.getElementById('overlay');
-    if (existingOverlay) {
-      existingOverlay.parentNode.removeChild(existingOverlay);
-    }
+    // Create overlay but keep it hidden initially
+    await createOverlayElements();
     
-    // Create overlay element
-    const overlay = document.createElement('div');
+    // Hide overlay by default
+    if (overlay) {
+      overlay.style.display = 'none';
+    }
+  });
+  
+  // Function to create overlay elements
+  async function createOverlayElements() {
+    console.log("Creating overlay elements...");
+    
+    // Create a container for all overlay elements
+    overlayContainer = document.createElement('div');
+    overlayContainer.id = 'subway-overlay-container';
+    overlayContainer.style.position = 'fixed';
+    overlayContainer.style.top = '0';
+    overlayContainer.style.left = '0';
+    overlayContainer.style.width = '100%';
+    overlayContainer.style.height = '100%';
+    overlayContainer.style.zIndex = '9999999';
+    overlayContainer.style.pointerEvents = 'none';
+    
+    // Add the container to the document
+    document.body.appendChild(overlayContainer);
+    
+    // Create the overlay inside the container
+    overlay = document.createElement('div');
     overlay.id = 'overlay';
     overlay.style.position = 'fixed';
     overlay.style.top = '0';
     overlay.style.left = '0';
     overlay.style.width = '100%';
     overlay.style.height = '100%';
-    overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.7)'; // White background for calibration
-    overlay.style.zIndex = '99999';
-    overlay.style.pointerEvents = 'none';
-    overlay.style.display = 'flex';
+    overlay.style.display = 'none'; // Start hidden
     overlay.style.flexDirection = 'column';
     overlay.style.alignItems = 'center';
     overlay.style.justifyContent = 'center';
-    overlay.style.color = 'black'; // Change text color to black for better visibility on white
-    overlay.style.fontFamily = 'Arial, sans-serif';
+    overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.5)'; // More transparent
+    overlay.style.zIndex = '10000';
+    overlay.style.transition = 'background-color 0.5s ease';
+    overlay.style.pointerEvents = 'none'; // Make sure overlay doesn't block clicks
+    
+    // Add the overlay to the container
+    overlayContainer.appendChild(overlay);
     
     // Create calibration UI
     const calibrationUI = document.createElement('div');
@@ -141,7 +183,7 @@ console.log("Subway Overlay script loaded");
     canvasContainer.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
     
     // Create video element
-    const videoElement = document.createElement('video');
+    videoElement = document.createElement('video');
     videoElement.id = 'webcam';
     videoElement.style.width = '100%';
     videoElement.style.height = '100%';
@@ -151,7 +193,7 @@ console.log("Subway Overlay script loaded");
     videoElement.style.borderRadius = '5px';
     
     // Create canvas element
-    const canvasElement = document.createElement('canvas');
+    canvasElement = document.createElement('canvas');
     canvasElement.id = 'pose-canvas';
     canvasElement.width = 400;
     canvasElement.height = 300;
@@ -166,27 +208,34 @@ console.log("Subway Overlay script loaded");
     // Create status text that will only appear on the camera view
     const statusText = document.createElement('div');
     statusText.id = 'status-text';
-    statusText.textContent = 'Loading pose detection model...';
-    statusText.style.position = 'absolute';
-    statusText.style.bottom = '10px';
-    statusText.style.left = '10px';
+    statusText.style.position = 'fixed';
+    statusText.style.bottom = '20px';
+    statusText.style.left = '50%';
+    statusText.style.transform = 'translateX(-50%)';
+    statusText.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
     statusText.style.color = 'white';
-    statusText.style.fontSize = '14px';
-    statusText.style.fontWeight = 'bold';
-    statusText.style.textShadow = '1px 1px 2px black';
-    statusText.style.zIndex = '3';
+    statusText.style.padding = '8px 16px';
+    statusText.style.borderRadius = '4px';
+    statusText.style.fontFamily = 'Arial, sans-serif';
+    statusText.style.fontSize = '16px';
+    statusText.style.zIndex = '10001';
+    statusText.style.pointerEvents = 'none'; // Make sure status text doesn't block clicks
+    statusText.textContent = 'Loading...';
     
     // Create toggle button
     const toggleButton = document.createElement('button');
-    toggleButton.id = 'toggle-overlay';
-    toggleButton.textContent = 'Play with computer controls';
-    toggleButton.style.padding = '10px 15px';
-    toggleButton.style.backgroundColor = '#fff';
-    toggleButton.style.border = '2px solid #ff8c00';
-    toggleButton.style.borderRadius = '5px';
+    toggleButton.id = 'toggle-button';
+    toggleButton.textContent = 'Disable Motion Control';
+    toggleButton.style.padding = '8px 12px';
+    toggleButton.style.backgroundColor = '#f44336';
+    toggleButton.style.color = 'white';
+    toggleButton.style.border = 'none';
+    toggleButton.style.borderRadius = '4px';
     toggleButton.style.cursor = 'pointer';
-    toggleButton.style.fontWeight = 'bold';
-    toggleButton.style.marginTop = '20px';
+    toggleButton.style.fontFamily = 'Arial, sans-serif';
+    toggleButton.style.fontSize = '14px';
+    toggleButton.style.marginBottom = '5px';
+    toggleButton.style.pointerEvents = 'auto'; // Make sure button can receive clicks
     
     // Create section labels as HTML elements instead of drawing on canvas
     const leftLabel = document.createElement('div');
@@ -277,23 +326,20 @@ console.log("Subway Overlay script loaded");
     let prevNoseX = null;
     let prevNoseY = null;
     let prevEyeDistance = null;
-    let emojiEnabled = true; // Default to showing the emoji
     
     // Create a toggle button for the emoji
     const emojiToggleButton = document.createElement('button');
+    emojiToggleButton.id = 'emoji-toggle-button';
     emojiToggleButton.textContent = 'Hide Emoji';
-    emojiToggleButton.style.position = 'fixed';
-    emojiToggleButton.style.bottom = '370px'; // Position above the other buttons
-    emojiToggleButton.style.right = '20px';
-    emojiToggleButton.style.padding = '10px 15px';
-    emojiToggleButton.style.backgroundColor = '#9C27B0'; // Purple color to distinguish it
+    emojiToggleButton.style.padding = '8px 12px';
+    emojiToggleButton.style.backgroundColor = '#9C27B0';
     emojiToggleButton.style.color = 'white';
     emojiToggleButton.style.border = 'none';
-    emojiToggleButton.style.borderRadius = '5px';
+    emojiToggleButton.style.borderRadius = '4px';
     emojiToggleButton.style.cursor = 'pointer';
-    emojiToggleButton.style.fontWeight = 'bold';
-    emojiToggleButton.style.zIndex = '100000';
-    emojiToggleButton.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+    emojiToggleButton.style.fontFamily = 'Arial, sans-serif';
+    emojiToggleButton.style.fontSize = '14px';
+    emojiToggleButton.style.pointerEvents = 'auto'; // Make sure button can receive clicks
     
     // Add event listener to toggle the emoji
     emojiToggleButton.addEventListener('click', function() {
@@ -349,7 +395,6 @@ console.log("Subway Overlay script loaded");
     
     // Initialize variables
     let model = null;
-    let calibrated = false;
     let calibrationProgress = 0;
     let calibrationStartTime = 0;
     let currentPose = null;
@@ -380,7 +425,7 @@ console.log("Subway Overlay script loaded");
       if (overlay.style.display === 'none') {
         // Switching back to motion controls
         overlay.style.display = 'flex';
-        toggleButton.textContent = 'Play with computer controls';
+        toggleButton.textContent = 'Disable Motion Control';
         
         // Reset calibration if needed
         if (!calibrated) {
@@ -402,7 +447,7 @@ console.log("Subway Overlay script loaded");
       } else {
         // Switching to computer controls
         overlay.style.display = 'none';
-        toggleButton.textContent = 'Play with computer controls';
+        toggleButton.textContent = 'Disable Motion Control';
         
         // Stop the webcam
         if (videoElement.srcObject) {
@@ -828,7 +873,7 @@ console.log("Subway Overlay script loaded");
       // Hide the entire instructions container
       instructionsContainer.style.display = 'none';
       
-      toggleButton.textContent = 'Play with computer controls';
+      toggleButton.textContent = 'Disable Motion Control';
       
       // Change overlay background to transparent
       overlay.style.backgroundColor = 'rgba(0, 0, 0, 0)';
@@ -1322,7 +1367,10 @@ console.log("Subway Overlay script loaded");
   
     // Add the emoji toggle button to the document
     document.body.appendChild(emojiToggleButton);
-  });
+    
+    console.log("Overlay elements created");
+    overlayInitialized = true;
+  }
   
   function loadScript(src) {
     return new Promise((resolve, reject) => {
@@ -1334,7 +1382,7 @@ console.log("Subway Overlay script loaded");
     });
   }
 
-  // Add this to your existing message listener in overlay.js
+  // Listen for messages from content script
   window.addEventListener('message', (event) => {
     // Only process messages from our extension
     if (event.data.source !== 'extension') return;
@@ -1343,34 +1391,61 @@ console.log("Subway Overlay script loaded");
     
     if (event.data.type === 'SUBWAY_TOGGLE') {
       const enabled = event.data.enabled;
+      console.log("Toggle received, enabled:", enabled);
+      
       if (enabled) {
-        // Start motion control
-        startWebcam();
-        // Other initialization code...
-      } else {
-        // Stop motion control
-        if (videoElement.srcObject) {
-          const tracks = videoElement.srcObject.getTracks();
-          tracks.forEach(track => track.stop());
-          videoElement.srcObject = null;
+        // Make sure overlay is initialized
+        if (!overlayInitialized) {
+          console.log("Initializing overlay on toggle");
+          createOverlayElements().then(() => {
+            console.log("Overlay initialized, now showing");
+            const overlayElement = document.getElementById('overlay');
+            if (overlayElement) {
+              overlayElement.style.display = 'flex';
+              console.log("Overlay display set to flex");
+            } else {
+              console.error("Overlay element not found after initialization");
+            }
+          }).catch(err => {
+            console.error("Error initializing overlay:", err);
+          });
+        } else {
+          // Show overlay
+          const overlayElement = document.getElementById('overlay');
+          if (overlayElement) {
+            console.log("Showing existing overlay");
+            overlayElement.style.display = 'flex';
+          } else {
+            console.error("Overlay element not found");
+          }
         }
-        // Hide overlay elements...
-        overlay.style.display = 'none';
+      } else {
+        // Hide overlay
+        const overlayElement = document.getElementById('overlay');
+        if (overlayElement) {
+          overlayElement.style.display = 'none';
+        }
+      }
+    }
+    
+    // Add back the emoji toggle handler if needed
+    else if (event.data.type === 'SUBWAY_TOGGLE_EMOJI') {
+      // Make sure emojiEnabled exists
+      if (typeof emojiEnabled === 'undefined') {
+        window.emojiEnabled = true;
       }
       
-      // Send status update back to content script
-      window.postMessage({
-        source: 'subway_overlay',
-        type: 'STATUS_UPDATE',
-        motionEnabled: enabled,
-        emojiEnabled: emojiEnabled,
-        calibrated: calibrated
-      }, '*');
-    }
-    else if (event.data.type === 'SUBWAY_TOGGLE_EMOJI') {
-      emojiEnabled = event.data.enabled;
-      emojiToggleButton.textContent = emojiEnabled ? 'Hide Emoji' : 'Show Emoji';
-      if (!emojiEnabled) {
+      window.emojiEnabled = event.data.enabled;
+      
+      // Safely access emojiToggleButton
+      const emojiToggleButton = document.getElementById('emoji-toggle-button');
+      if (emojiToggleButton) {
+        emojiToggleButton.textContent = window.emojiEnabled ? 'Hide Emoji' : 'Show Emoji';
+      }
+      
+      // Safely access smileyFace
+      const smileyFace = document.querySelector('[id^="smiley"]') || document.querySelector('div[style*="font-size: 75px"]');
+      if (smileyFace && !window.emojiEnabled) {
         smileyFace.style.display = 'none';
       }
       
@@ -1378,10 +1453,34 @@ console.log("Subway Overlay script loaded");
       window.postMessage({
         source: 'subway_overlay',
         type: 'STATUS_UPDATE',
-        motionEnabled: (overlay.style.display !== 'none'),
-        emojiEnabled: emojiEnabled,
-        calibrated: calibrated
+        motionEnabled: typeof isEnabled !== 'undefined' ? isEnabled : false,
+        emojiEnabled: window.emojiEnabled,
+        calibrated: typeof calibrated !== 'undefined' ? calibrated : false
       }, '*');
     }
   });
+
+  // Add a function to load the model
+  async function loadModel() {
+    try {
+      if (statusText) {
+        statusText.textContent = 'Loading pose detection model...';
+      }
+      
+      // Use a simpler model that's more likely to work
+      model = await tf.loadGraphModel('https://tfhub.dev/google/tfjs-model/movenet/singlepose/lightning/4', { fromTFHub: true });
+      console.log('Model loaded');
+      
+      if (statusText) {
+        statusText.textContent = 'Model loaded! Starting camera...';
+      }
+      return true;
+    } catch (error) {
+      console.error('Error loading model:', error);
+      if (statusText) {
+        statusText.textContent = 'Error loading model. Please try refreshing the page.';
+      }
+      return false;
+    }
+  }
 })(); 
